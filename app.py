@@ -92,6 +92,40 @@ def render_prediction_cards(current_price: float, predicted_price: float, horizo
     change_col.metric("Perubahan prediksi", f"{percent_change:+.2f}%")
 
 
+def render_price_chart(series: pd.Series, predicted_price: float, horizon: str) -> None:
+    """Menampilkan grafik historis dan titik prediksi."""
+    chart_type = st.toggle("Tampilkan candlestick", value=False)
+    history_df = resample_data(fetch_historical(), horizon).tail(180)
+    prediction_date = history_df.index[-1] + pd.tseries.frequencies.to_offset({"day": "B", "week": "W-FRI", "month": "ME"}[horizon])
+    confidence_band = MAPE_BAND[horizon] / 100
+
+    fig = go.Figure()
+    if chart_type:
+        fig.add_trace(
+            go.Candlestick(
+                x=history_df.index,
+                open=history_df["Open"],
+                high=history_df["High"],
+                low=history_df["Low"],
+                close=history_df["Close"],
+                name="Harga historis",
+            )
+        )
+    else:
+        fig.add_trace(go.Scatter(x=history_df.index, y=history_df["Close"], mode="lines", name="Harga historis"))
+
+    fig.add_trace(go.Scatter(x=[prediction_date], y=[predicted_price], mode="markers", name="Prediksi"))
+    fig.add_trace(
+        go.Scatter(
+            x=[prediction_date, prediction_date],
+            y=[predicted_price * (1 - confidence_band), predicted_price * (1 + confidence_band)],
+            mode="lines",
+            name="Rentang keyakinan",
+        )
+    )
+    fig.update_layout(title="Harga historis dan prediksi", yaxis_title="USD", xaxis_title="Tanggal")
+    st.plotly_chart(fig, use_container_width=True)
+
 
 st.set_page_config(page_title="Prediksi Harga Emas", page_icon="🏆", layout="wide")
 
@@ -108,8 +142,9 @@ try:
         st.warning("Model belum dilatih untuk horizon ini. Jalankan training terlebih dahulu.")
         st.code(f"python model_train.py --horizon {selected_horizon}")
     else:
-        predicted_price, _ = predict_next_price(selected_horizon)
+        predicted_price, prediction_series = predict_next_price(selected_horizon)
         render_prediction_cards(current_price, predicted_price, selected_horizon)
+        render_price_chart(prediction_series, predicted_price, selected_horizon)
 except DataFetchError as error:
     st.warning(f"Gagal mengambil data terbaru: {error}")
 except ValueError as error:

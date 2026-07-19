@@ -32,7 +32,7 @@ Tick only after the audit passes.
 - [x] Phase 3 — LSTM training pipeline (`model_train.py`, horizon day/week/month)
 - [x] Phase 4 — Model evaluation (MAPE model vs baseline, walk-forward)
 - [x] Phase 5 — Streamlit dashboard scaffold (horizon selector, layout)
-- [ ] Phase 6 — Prediction display with confidence interval + chart
+- [x] Phase 6 — Prediction display with confidence interval + chart
 - [ ] Phase 7 — Data freshness status & API-failure warning
 - [ ] Phase 8 — Prediction history log vs realized price
 - [ ] Phase 9 — Manual retrain trigger + training metadata
