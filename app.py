@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from streamlit_autorefresh import st_autorefresh
 from tensorflow.keras.models import load_model
 
 from data_fetch import DataFetchError, fetch_historical, get_latest_price, resample_data
@@ -27,6 +28,7 @@ MAPE_BAND = {
     "week": 4.3433,
     "month": 10.5858,
 }
+AUTO_REFRESH_INTERVAL_MS = 10 * 60 * 1000
 
 
 def render_freshness_badge(latest_timestamp: pd.Timestamp) -> None:
@@ -186,6 +188,9 @@ def render_prediction_history(horizon: str) -> None:
 
 
 st.set_page_config(page_title="Prediksi Harga Emas", page_icon="🏆", layout="wide")
+
+# Auto-refresh hanya menjalankan ulang path fetch + predict Streamlit, tidak memanggil train_model().
+st_autorefresh(interval=AUTO_REFRESH_INTERVAL_MS, key="gold_dashboard_autorefresh")
 
 selected_horizon, selected_label = _selected_horizon()
 render_training_controls(selected_horizon)
