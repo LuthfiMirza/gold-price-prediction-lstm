@@ -13,6 +13,7 @@ from tensorflow.keras.models import load_model
 
 from data_fetch import DataFetchError, fetch_historical, get_latest_price, resample_data
 from model_train import LOOKBACK
+from prediction_log import get_realized_comparisons, log_prediction
 
 HORIZON_LABELS = {
     "day": "Harian",
@@ -143,6 +144,22 @@ def render_price_chart(series: pd.Series, predicted_price: float, horizon: str) 
     st.plotly_chart(fig, use_container_width=True)
 
 
+def next_target_date(series: pd.Series, horizon: str) -> pd.Timestamp:
+    """Menghitung tanggal target prediksi berikutnya berdasarkan horizon."""
+    offset = pd.tseries.frequencies.to_offset({"day": "B", "week": "W-FRI", "month": "ME"}[horizon])
+    return pd.Timestamp(series.index[-1]) + offset
+
+
+def render_prediction_history(horizon: str) -> None:
+    """Menampilkan riwayat prediksi yang sudah punya harga realisasi."""
+    st.subheader("Riwayat prediksi vs realisasi")
+    comparison_df = get_realized_comparisons(horizon)
+    if comparison_df.empty:
+        st.caption("Belum ada prediksi lama yang bisa dibandingkan dengan realisasi.")
+        return
+    st.dataframe(comparison_df, use_container_width=True)
+
+
 st.set_page_config(page_title="Prediksi Harga Emas", page_icon="🏆", layout="wide")
 
 selected_horizon, selected_label = _selected_horizon()
@@ -160,8 +177,11 @@ try:
         st.code(f"python model_train.py --horizon {selected_horizon}")
     else:
         predicted_price, prediction_series = predict_next_price(selected_horizon)
+        target_date = next_target_date(prediction_series, selected_horizon)
+        log_prediction(selected_horizon, predicted_price, target_date)
         render_prediction_cards(current_price, predicted_price, selected_horizon)
         render_price_chart(prediction_series, predicted_price, selected_horizon)
+        render_prediction_history(selected_horizon)
 except DataFetchError as error:
     st.warning(f"⚠️ Gagal mengambil data terbaru dari Yahoo Finance: {error}")
 except ValueError as error:

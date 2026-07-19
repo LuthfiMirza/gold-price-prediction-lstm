@@ -54,3 +54,5 @@ ENV/
 
 # === OS files ===
 Thumbs.db
+
+prediction_log.csv
