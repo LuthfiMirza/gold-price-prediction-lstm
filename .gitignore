@@ -49,6 +49,9 @@ ENV/
 *.swo
 .DS_Store
 
+# === Claude Code local settings (per-user, not shared) ===
+.claude/settings.local.json
+
 # === Logs ===
 *.log
 
