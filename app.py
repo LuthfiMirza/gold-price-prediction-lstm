@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pickle
+import json
 from pathlib import Path
 
 import numpy as np
@@ -13,6 +14,7 @@ from tensorflow.keras.models import load_model
 
 from data_fetch import DataFetchError, fetch_historical, get_latest_price, resample_data
 from model_train import LOOKBACK
+from model_train import train as train_model
 from prediction_log import get_realized_comparisons, log_prediction
 
 HORIZON_LABELS = {
@@ -66,6 +68,29 @@ def _artifacts_ready(horizon: str) -> bool:
             _artifact_path("series", horizon, "pkl"),
         )
     )
+
+
+def load_training_metadata(horizon: str) -> dict | None:
+    """Memuat metadata training untuk horizon terpilih jika tersedia."""
+    metadata_path = _artifact_path("metadata", horizon, "json")
+    if not metadata_path.exists():
+        return None
+    return json.loads(metadata_path.read_text())
+
+
+def render_training_controls(horizon: str) -> None:
+    """Menampilkan metadata model dan tombol retrain manual."""
+    metadata = load_training_metadata(horizon)
+    if metadata:
+        st.sidebar.caption(f"Model terakhir dilatih: {metadata['last_trained_at']}")
+        st.sidebar.caption(f"Validation MAPE: {metadata['validation_mape']:.2f}%")
+    else:
+        st.sidebar.caption("Model belum memiliki metadata training.")
+
+    if st.sidebar.button("Latih ulang model sekarang"):
+        with st.spinner("Melatih ulang model, mohon tunggu..."):
+            train_model(horizon)
+        st.success("Training selesai. Refresh dashboard untuk memuat artifact terbaru.")
 
 
 def _load_prediction_artifacts(horizon: str):
@@ -163,6 +188,7 @@ def render_prediction_history(horizon: str) -> None:
 st.set_page_config(page_title="Prediksi Harga Emas", page_icon="🏆", layout="wide")
 
 selected_horizon, selected_label = _selected_horizon()
+render_training_controls(selected_horizon)
 
 st.title("Prediksi Harga Emas (XAU/USD)")
 st.subheader(f"Horizon terpilih: {selected_label}")

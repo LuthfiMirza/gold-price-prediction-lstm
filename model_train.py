@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import pickle
 from pathlib import Path
 
@@ -66,6 +67,15 @@ def _artifact_path(prefix: str, horizon: str, suffix: str) -> Path:
     return Path(f"{prefix}_{horizon}.{suffix}")
 
 
+def _validation_mape(model: Sequential, scaler: MinMaxScaler, x_val: np.ndarray, y_val: np.ndarray) -> float:
+    """Menghitung MAPE validasi dalam skala harga asli."""
+    scaled_predictions = model.predict(x_val, verbose=0)
+    predictions = scaler.inverse_transform(scaled_predictions).reshape(-1)
+    actual_values = scaler.inverse_transform(y_val).reshape(-1)
+    non_zero_mask = actual_values != 0
+    return float(np.mean(np.abs((actual_values[non_zero_mask] - predictions[non_zero_mask]) / actual_values[non_zero_mask])) * 100)
+
+
 def _prepare_scaled_series(close_series: pd.Series) -> tuple[np.ndarray, MinMaxScaler, int]:
     """Melakukan scaling dengan scaler yang fit hanya pada train split."""
     values = close_series.dropna().astype(float).values.reshape(-1, 1)
@@ -112,6 +122,17 @@ def train(horizon: str):
         pickle.dump(scaler, scaler_file)
     with _artifact_path("series", normalized_horizon, "pkl").open("wb") as series_file:
         pickle.dump(close_series, series_file)
+
+    metadata = {
+        "horizon": normalized_horizon,
+        "last_trained_at": pd.Timestamp.now(tz="UTC").isoformat(),
+        "train_loss": float(history.history["loss"][-1]),
+        "val_loss": float(history.history["val_loss"][-1]),
+        "validation_mape": _validation_mape(model, scaler, x_val, y_val),
+        "lookback": LOOKBACK,
+        "train_period": TRAIN_PERIOD_BY_HORIZON[normalized_horizon],
+    }
+    _artifact_path("metadata", normalized_horizon, "json").write_text(json.dumps(metadata, indent=2))
 
     return history
 
