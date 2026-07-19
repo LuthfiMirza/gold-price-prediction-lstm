@@ -167,6 +167,10 @@ def render_price_chart(series: pd.Series, predicted_price: float, horizon: str) 
             name="Rentang keyakinan",
         )
     )
+    support_level = float(history_df["Low"].tail(60).min())
+    resistance_level = float(history_df["High"].tail(60).max())
+    fig.add_hline(y=support_level, line_dash="dash", line_color="green", annotation_text="Support")
+    fig.add_hline(y=resistance_level, line_dash="dash", line_color="red", annotation_text="Resistance")
     fig.update_layout(title="Harga historis dan prediksi", yaxis_title="USD", xaxis_title="Tanggal")
     st.plotly_chart(fig, use_container_width=True)
 
