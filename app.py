@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components
 from streamlit_autorefresh import st_autorefresh
 from tensorflow.keras.models import load_model
 
@@ -34,6 +35,47 @@ MAPE_BAND = {
     "month": 10.5858,
 }
 AUTO_REFRESH_INTERVAL_MS = 10 * 60 * 1000
+
+
+def render_tradingview_widget() -> None:
+    """Menampilkan widget chart live TradingView (embed gratis, tanpa API key).
+
+    Widget ini murni tampilan pihak ketiga untuk konteks pasar real-time —
+    bukan sumber data model. Prediksi dashboard tetap dihitung dari yfinance
+    lewat data_fetch.py, karena widget embed tidak menyediakan data terprogram.
+    """
+    st.caption("Live market (TradingView) — konteks pasar real-time, terpisah dari data prediksi di atas.")
+    components.html(
+        """
+        <div class="tradingview-widget-container">
+          <div class="tradingview-widget-container__widget"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js" async>
+          {
+            "symbols": [["OANDA:XAUUSD|1D"]],
+            "chartOnly": false,
+            "width": "100%",
+            "height": "220",
+            "locale": "id_ID",
+            "colorTheme": "light",
+            "autosize": true,
+            "showVolume": false,
+            "showMA": false,
+            "hideDateRanges": false,
+            "hideMarketStatus": false,
+            "hideSymbolLogo": false,
+            "scalePosition": "right",
+            "scaleMode": "Normal",
+            "fontFamily": "-apple-system, BlinkMacSystemFont, sans-serif",
+            "noTimeScale": false,
+            "valuesTracking": "1",
+            "changeMode": "price-and-percent",
+            "chartType": "area"
+          }
+          </script>
+        </div>
+        """,
+        height=240,
+    )
 
 
 def render_freshness_badge(latest_timestamp: pd.Timestamp) -> None:
@@ -295,6 +337,7 @@ selected_horizon, selected_label = _selected_horizon()
 render_training_controls(selected_horizon)
 
 st.title("Prediksi Harga Emas (XAU/USD)")
+render_tradingview_widget()
 st.subheader(f"Horizon terpilih: {selected_label}")
 
 try:
