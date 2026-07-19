@@ -169,6 +169,29 @@ def predict_next_price(horizon: str) -> tuple[float, pd.Series]:
     return float(predicted_price), series
 
 
+def render_horizon_overview() -> None:
+    """Menampilkan ringkasan prediksi besok, minggu depan, dan bulan depan sekaligus.
+
+    Supaya user tidak perlu gonta-ganti radio horizon cuma buat lihat gambaran
+    besar: naik/turun dan berapa persen untuk ketiga horizon dalam satu pandangan.
+    """
+    st.subheader("Ringkasan cepat: besok, minggu depan, bulan depan")
+    columns = st.columns(3)
+    for column, (horizon, label) in zip(columns, HORIZON_LABELS.items()):
+        with column:
+            if not _artifacts_ready(horizon):
+                st.caption(f"{label}: model belum dilatih.")
+                continue
+            try:
+                predicted_price, series = predict_next_price(horizon)
+            except ValueError as error:
+                st.caption(f"{label}: {error}")
+                continue
+            last_price = float(series.iloc[-1])
+            percent_change = ((predicted_price - last_price) / last_price) * 100
+            st.metric(label, f"US$ {predicted_price:,.2f}", f"{percent_change:+.2f}%")
+
+
 def render_prediction_cards(current_price: float, predicted_price: float, horizon: str) -> None:
     """Menampilkan kartu harga terkini, prediksi, dan perubahan persen."""
     confidence_band = MAPE_BAND[horizon] / 100
@@ -338,6 +361,8 @@ render_training_controls(selected_horizon)
 
 st.title("Prediksi Harga Emas (XAU/USD)")
 render_tradingview_widget()
+render_horizon_overview()
+st.divider()
 st.subheader(f"Horizon terpilih: {selected_label}")
 
 try:
