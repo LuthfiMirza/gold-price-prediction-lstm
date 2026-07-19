@@ -27,7 +27,7 @@ Rules — do not break these:
 Tick only after the audit passes.
 
 - [x] Phase 0 — Repository & environment scaffold
-- [ ] Phase 1 — Data ingestion module (`data_fetch.py`)
+- [x] Phase 1 — Data ingestion module (`data_fetch.py`)
 - [ ] Phase 2 — Baseline naive forecaster + backtesting framework
 - [ ] Phase 3 — LSTM training pipeline (`model_train.py`, horizon day/week/month)
 - [ ] Phase 4 — Model evaluation (MAPE model vs baseline, walk-forward)
