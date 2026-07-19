@@ -6,6 +6,11 @@ import pandas as pd
 import yfinance as yf
 
 GOLD_SYMBOL = "GC=F"
+MACRO_SYMBOLS = {
+    "DXY": "DX-Y.NYB",
+    "FedRate": "^IRX",
+    "Oil": "CL=F",
+}
 OHLC_COLUMNS = ["Open", "High", "Low", "Close"]
 
 
@@ -88,3 +93,35 @@ def get_latest_price() -> tuple[float, pd.Timestamp]:
         raise
     except Exception as error:
         raise DataFetchError(f"Gagal mengambil harga emas terbaru: {error}") from error
+
+
+def fetch_macro_features(period: str = "10y") -> pd.DataFrame:
+    """Mengambil fitur makro DXY, proxy suku bunga Fed, dan minyak."""
+    feature_frames = []
+    for feature_name, symbol in MACRO_SYMBOLS.items():
+        try:
+            feature_df = yf.download(symbol, period=period, progress=False, auto_adjust=False)
+            feature_df = _flatten_columns(feature_df)
+            if feature_df.empty or "Close" not in feature_df.columns:
+                raise DataFetchError(f"Data fitur {feature_name} kosong untuk simbol {symbol}.")
+            feature_frames.append(feature_df[["Close"]].rename(columns={"Close": feature_name}))
+        except DataFetchError:
+            raise
+        except Exception as error:
+            raise DataFetchError(f"Gagal mengambil fitur {feature_name}: {error}") from error
+
+    macro_df = pd.concat(feature_frames, axis=1).sort_index().ffill().dropna()
+    if macro_df.empty:
+        raise DataFetchError("Data fitur makro kosong setelah penyelarasan.")
+    macro_df.index = pd.to_datetime(macro_df.index)
+    return macro_df
+
+
+def fetch_multivariate_data(period: str = "10y") -> pd.DataFrame:
+    """Mengambil data emas dan fitur makro yang sejajar pada index tanggal."""
+    gold_df = fetch_historical(period=period)[["Close"]].rename(columns={"Close": "GoldClose"})
+    macro_df = fetch_macro_features(period=period)
+    combined_df = gold_df.join(macro_df, how="left").ffill().dropna()
+    if combined_df.empty:
+        raise DataFetchError("Data multivariate kosong setelah penggabungan.")
+    return combined_df

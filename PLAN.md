@@ -38,7 +38,7 @@ Tick only after the audit passes.
 - [x] Phase 9 — Manual retrain trigger + training metadata
 - [x] Phase 10 — Auto-refresh mechanism
 - [x] Phase 11 — Support/resistance levels + CSV export
-- [ ] Phase 12 — External macro features (DXY, Fed rate, oil price)
+- [x] Phase 12 — External macro features (DXY, Fed rate, oil price)
 - [ ] Phase 13 — Model comparison (XGBoost / Prophet side-by-side)
 - [ ] Phase 14 — Documentation polish & disclaimer review
 
