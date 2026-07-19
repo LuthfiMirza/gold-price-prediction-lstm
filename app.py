@@ -146,11 +146,18 @@ def render_prediction_cards(current_price: float, predicted_price: float, horizo
 
 
 def render_price_chart(series: pd.Series, predicted_price: float, horizon: str) -> None:
-    """Menampilkan grafik historis dan titik prediksi."""
+    """Menampilkan grafik historis dan titik prediksi, dengan garis penghubung arah dan rentang error bar."""
     chart_type = st.toggle("Tampilkan candlestick", value=False)
     history_df = resample_data(fetch_historical(), horizon).tail(180)
-    prediction_date = history_df.index[-1] + pd.tseries.frequencies.to_offset({"day": "B", "week": "W-FRI", "month": "ME"}[horizon])
+    last_date = history_df.index[-1]
+    last_price = float(history_df["Close"].iloc[-1])
+    offset = pd.tseries.frequencies.to_offset({"day": "B", "week": "W-FRI", "month": "ME"}[horizon])
+    prediction_date = last_date + offset
     confidence_band = MAPE_BAND[horizon] / 100
+    lower_bound = predicted_price * (1 - confidence_band)
+    upper_bound = predicted_price * (1 + confidence_band)
+    is_up = predicted_price >= last_price
+    trend_color = "#1a9850" if is_up else "#d73027"
 
     fig = go.Figure()
     if chart_type:
@@ -167,19 +174,59 @@ def render_price_chart(series: pd.Series, predicted_price: float, horizon: str) 
     else:
         fig.add_trace(go.Scatter(x=history_df.index, y=history_df["Close"], mode="lines", name="Harga historis"))
 
-    fig.add_trace(go.Scatter(x=[prediction_date], y=[predicted_price], mode="markers", name="Prediksi"))
+    # Garis putus-putus penghubung harga terakhir -> prediksi, supaya arahnya kelihatan jelas.
     fig.add_trace(
         go.Scatter(
-            x=[prediction_date, prediction_date],
-            y=[predicted_price * (1 - confidence_band), predicted_price * (1 + confidence_band)],
+            x=[last_date, prediction_date],
+            y=[last_price, predicted_price],
             mode="lines",
-            name="Rentang keyakinan",
+            line=dict(color=trend_color, dash="dash", width=2),
+            name="Arah prediksi",
         )
     )
+    fig.add_trace(
+        go.Scatter(
+            x=[prediction_date],
+            y=[predicted_price],
+            mode="markers+text",
+            marker=dict(color=trend_color, size=14, symbol="diamond"),
+            text=[f"{'▲' if is_up else '▼'} US$ {predicted_price:,.0f}"],
+            textposition="top center" if is_up else "bottom center",
+            error_y=dict(
+                type="data",
+                symmetric=False,
+                array=[upper_bound - predicted_price],
+                arrayminus=[predicted_price - lower_bound],
+                color=trend_color,
+                thickness=2,
+                width=8,
+            ),
+            name="Prediksi",
+        )
+    )
+
+    # Beri ruang kosong di sisi kanan supaya titik prediksi tidak mepet ke tepi grafik.
+    x_padding = (prediction_date - history_df.index[0]) * 0.05
+    fig.update_xaxes(range=[history_df.index[0], prediction_date + x_padding])
+
+    # Warna abu-abu netral dan label di kiri, supaya tidak bentrok dengan warna arah
+    # prediksi (hijau/merah) atau tertutup label prediksi yang ada di tepi kanan.
     support_level = float(history_df["Low"].tail(60).min())
     resistance_level = float(history_df["High"].tail(60).max())
-    fig.add_hline(y=support_level, line_dash="dash", line_color="green", annotation_text="Support")
-    fig.add_hline(y=resistance_level, line_dash="dash", line_color="red", annotation_text="Resistance")
+    fig.add_hline(
+        y=support_level,
+        line_dash="dot",
+        line_color="rgba(120,120,120,0.6)",
+        annotation_text="Support",
+        annotation_position="bottom left",
+    )
+    fig.add_hline(
+        y=resistance_level,
+        line_dash="dot",
+        line_color="rgba(120,120,120,0.6)",
+        annotation_text="Resistance",
+        annotation_position="top left",
+    )
     fig.update_layout(title="Harga historis dan prediksi", yaxis_title="USD", xaxis_title="Tanggal")
     st.plotly_chart(fig, use_container_width=True)
 
