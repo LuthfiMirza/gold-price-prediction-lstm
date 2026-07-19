@@ -18,6 +18,11 @@ from model_train import LOOKBACK
 from model_train import train as train_model
 from prediction_log import get_realized_comparisons, log_prediction
 
+try:
+    from model_compare import compare_models
+except Exception:
+    compare_models = None
+
 HORIZON_LABELS = {
     "day": "Harian",
     "week": "Mingguan",
@@ -191,6 +196,18 @@ def render_prediction_history(horizon: str) -> None:
     st.dataframe(comparison_df, use_container_width=True)
 
 
+def render_model_comparison() -> None:
+    """Menampilkan panel akurasi model jika dependency perbandingan tersedia."""
+    st.subheader("Panel akurasi model")
+    if compare_models is None:
+        st.caption("Panel perbandingan belum tersedia di environment ini.")
+        return
+    if st.button("Hitung perbandingan model"):
+        with st.spinner("Menghitung MAPE naive, LSTM, XGBoost, dan Prophet..."):
+            comparison_df = compare_models()
+        st.dataframe(comparison_df, use_container_width=True)
+
+
 def render_csv_download(horizon: str, predicted_price: float, target_date: pd.Timestamp) -> None:
     """Menyediakan unduhan CSV berisi data historis dan prediksi."""
     historical_df = resample_data(fetch_historical(), horizon).copy()
@@ -244,6 +261,7 @@ try:
         render_prediction_cards(current_price, predicted_price, selected_horizon)
         render_price_chart(prediction_series, predicted_price, selected_horizon)
         render_csv_download(selected_horizon, predicted_price, target_date)
+        render_model_comparison()
         render_prediction_history(selected_horizon)
 except DataFetchError as error:
     st.warning(f"⚠️ Gagal mengambil data terbaru dari Yahoo Finance: {error}")
