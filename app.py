@@ -191,6 +191,33 @@ def render_prediction_history(horizon: str) -> None:
     st.dataframe(comparison_df, use_container_width=True)
 
 
+def render_csv_download(horizon: str, predicted_price: float, target_date: pd.Timestamp) -> None:
+    """Menyediakan unduhan CSV berisi data historis dan prediksi."""
+    historical_df = resample_data(fetch_historical(), horizon).copy()
+    export_df = historical_df.reset_index().rename(columns={"Date": "date"})
+    prediction_row = pd.DataFrame(
+        [
+            {
+                "date": target_date,
+                "Open": np.nan,
+                "High": np.nan,
+                "Low": np.nan,
+                "Close": predicted_price,
+                "Volume": np.nan,
+                "type": "prediction",
+            }
+        ]
+    )
+    export_df["type"] = "historical"
+    export_df = pd.concat([export_df, prediction_row], ignore_index=True)
+    st.download_button(
+        "Unduh CSV",
+        data=export_df.to_csv(index=False),
+        file_name=f"gold_prediction_{horizon}.csv",
+        mime="text/csv",
+    )
+
+
 st.set_page_config(page_title="Prediksi Harga Emas", page_icon="🏆", layout="wide")
 
 # Auto-refresh hanya menjalankan ulang path fetch + predict Streamlit, tidak memanggil train_model().
@@ -216,6 +243,7 @@ try:
         log_prediction(selected_horizon, predicted_price, target_date)
         render_prediction_cards(current_price, predicted_price, selected_horizon)
         render_price_chart(prediction_series, predicted_price, selected_horizon)
+        render_csv_download(selected_horizon, predicted_price, target_date)
         render_prediction_history(selected_horizon)
 except DataFetchError as error:
     st.warning(f"⚠️ Gagal mengambil data terbaru dari Yahoo Finance: {error}")
