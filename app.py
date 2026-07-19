@@ -222,7 +222,12 @@ def render_price_chart(series: pd.Series, predicted_price: float, horizon: str) 
     lower_bound = predicted_price * (1 - confidence_band)
     upper_bound = predicted_price * (1 + confidence_band)
     is_up = predicted_price >= last_price
-    trend_color = "#1a9850" if is_up else "#d73027"
+    # Palet warna disamakan dengan skema TradingView: biru untuk garis harga,
+    # hijau/merah teal khas TradingView untuk naik/turun (candlestick & arah prediksi).
+    tv_up_color = "#26a69a"
+    tv_down_color = "#ef5350"
+    tv_line_color = "#2962ff"
+    trend_color = tv_up_color if is_up else tv_down_color
 
     fig = go.Figure()
     if chart_type:
@@ -234,10 +239,20 @@ def render_price_chart(series: pd.Series, predicted_price: float, horizon: str) 
                 low=history_df["Low"],
                 close=history_df["Close"],
                 name="Harga historis",
+                increasing_line_color=tv_up_color,
+                decreasing_line_color=tv_down_color,
             )
         )
     else:
-        fig.add_trace(go.Scatter(x=history_df.index, y=history_df["Close"], mode="lines", name="Harga historis"))
+        fig.add_trace(
+            go.Scatter(
+                x=history_df.index,
+                y=history_df["Close"],
+                mode="lines",
+                name="Harga historis",
+                line=dict(color=tv_line_color, width=1.5),
+            )
+        )
 
     # Garis putus-putus penghubung harga terakhir -> prediksi, supaya arahnya kelihatan jelas.
     fig.add_trace(
@@ -292,7 +307,33 @@ def render_price_chart(series: pd.Series, predicted_price: float, horizon: str) 
         annotation_text="Resistance",
         annotation_position="top left",
     )
-    fig.update_layout(title="Harga historis dan prediksi", yaxis_title="USD", xaxis_title="Tanggal")
+    # Layout ala TradingView: latar putih bersih, sumbu harga di kanan, gridline
+    # horizontal tipis saja (vertikal dimatikan), garis crosshair mengikuti kursor.
+    fig.update_layout(
+        plot_bgcolor="#ffffff",
+        paper_bgcolor="#ffffff",
+        font=dict(family="-apple-system, BlinkMacSystemFont, Trebuchet MS, Roboto, sans-serif", color="#131722", size=12),
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        margin=dict(l=10, r=60, t=30, b=10),
+    )
+    fig.update_xaxes(
+        showgrid=False,
+        showline=True,
+        linecolor="#e0e3eb",
+        showspikes=True,
+        spikemode="across",
+        spikecolor="#758696",
+        spikethickness=1,
+        title_text="",
+    )
+    fig.update_yaxes(
+        side="right",
+        showgrid=True,
+        gridcolor="#f0f3fa",
+        showline=False,
+        title_text="",
+    )
     st.plotly_chart(fig, use_container_width=True)
 
 
