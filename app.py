@@ -26,6 +26,22 @@ MAPE_BAND = {
 }
 
 
+def render_freshness_badge(latest_timestamp: pd.Timestamp) -> None:
+    """Menampilkan status kesegaran data berdasarkan timestamp terbaru."""
+    latest_time = pd.Timestamp(latest_timestamp)
+    if latest_time.tzinfo is None:
+        latest_time = latest_time.tz_localize("UTC")
+    now = pd.Timestamp.now(tz="UTC")
+    minutes_old = max((now - latest_time).total_seconds() / 60, 0)
+
+    if minutes_old < 15:
+        st.success(f"Data segar - {minutes_old:.0f} menit lalu")
+    elif minutes_old < 60:
+        st.warning(f"Data cukup segar - {minutes_old:.0f} menit lalu")
+    else:
+        st.error(f"Data lama - {minutes_old / 60:.1f} jam lalu")
+
+
 def _selected_horizon() -> tuple[str, str]:
     """Mengambil pilihan horizon dari sidebar."""
     st.sidebar.header("Pengaturan")
@@ -137,6 +153,7 @@ st.subheader(f"Horizon terpilih: {selected_label}")
 try:
     current_price, latest_timestamp = get_latest_price()
     st.caption(f"Timestamp data terakhir: {latest_timestamp}")
+    render_freshness_badge(latest_timestamp)
 
     if not _artifacts_ready(selected_horizon):
         st.warning("Model belum dilatih untuk horizon ini. Jalankan training terlebih dahulu.")
@@ -146,6 +163,6 @@ try:
         render_prediction_cards(current_price, predicted_price, selected_horizon)
         render_price_chart(prediction_series, predicted_price, selected_horizon)
 except DataFetchError as error:
-    st.warning(f"Gagal mengambil data terbaru: {error}")
+    st.warning(f"⚠️ Gagal mengambil data terbaru dari Yahoo Finance: {error}")
 except ValueError as error:
     st.warning(str(error))
