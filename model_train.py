@@ -84,44 +84,70 @@ def _artifact_path(prefix: str, horizon: str, suffix: str, multivariate: bool = 
     return Path(f"{prefix}_{mode}{horizon}.{suffix}")
 
 
-def _validation_mape(model: Sequential, scaler: MinMaxScaler, x_val: np.ndarray, y_val: np.ndarray) -> float:
-    """Menghitung MAPE validasi dalam skala harga asli."""
-    scaled_predictions = model.predict(x_val, verbose=0)
+def compute_returns(values: np.ndarray) -> np.ndarray:
+    """Menghitung return persentase antar periode berturut-turut dari deret harga/fitur."""
+    prices = np.asarray(values, dtype=float)
+    if len(prices) < 2:
+        raise ValueError("butuh minimal 2 titik data untuk menghitung return")
+    return (prices[1:] - prices[:-1]) / prices[:-1]
+
+
+def _validation_mape(
+    model: Sequential,
+    scaler: MinMaxScaler,
+    x_val: np.ndarray,
+    base_prices_val: np.ndarray,
+    actual_next_prices_val: np.ndarray,
+) -> float:
+    """Menghitung MAPE validasi dalam skala harga asli dari prediksi return."""
+    scaled_predictions = model.predict(x_val, verbose=0).reshape(-1)
     target_min = scaler.data_min_[0]
     target_range = scaler.data_range_[0]
-    predictions = scaled_predictions.reshape(-1) * target_range + target_min
-    actual_values = y_val.reshape(-1) * target_range + target_min
-    non_zero_mask = actual_values != 0
-    return float(np.mean(np.abs((actual_values[non_zero_mask] - predictions[non_zero_mask]) / actual_values[non_zero_mask])) * 100)
+    predicted_returns = scaled_predictions * target_range + target_min
+    predicted_prices = base_prices_val * (1 + predicted_returns)
+    non_zero_mask = actual_next_prices_val != 0
+    actual_values = actual_next_prices_val[non_zero_mask]
+    predictions = predicted_prices[non_zero_mask]
+    return float(np.mean(np.abs((actual_values - predictions) / actual_values)) * 100)
 
 
-def _prepare_scaled_series(close_series: pd.Series) -> tuple[np.ndarray, MinMaxScaler, int]:
-    """Melakukan scaling dengan scaler yang fit hanya pada train split."""
-    values = close_series.dropna().astype(float).values.reshape(-1, 1)
-    train_size = int(len(values) * TRAIN_SPLIT_RATIO)
-    if train_size <= LOOKBACK or len(values) - train_size < 1:
+def _prepare_scaled_series(close_series: pd.Series) -> tuple[np.ndarray, MinMaxScaler, int, np.ndarray]:
+    """Mengubah harga jadi return, lalu scaling dengan scaler yang fit hanya pada train split."""
+    prices = close_series.dropna().astype(float).values
+    returns = compute_returns(prices).reshape(-1, 1)
+    train_size = int(len(returns) * TRAIN_SPLIT_RATIO)
+    if train_size <= LOOKBACK or len(returns) - train_size < 1:
         raise ValueError("data tidak cukup untuk train/validation split")
 
     scaler = MinMaxScaler(feature_range=(0, 1))
-    scaler.fit(values[:train_size])
-    scaled_values = scaler.transform(values)
-    return scaled_values, scaler, train_size
+    scaler.fit(returns[:train_size])
+    scaled_returns = scaler.transform(returns)
+    return scaled_returns, scaler, train_size, prices
 
 
-def _prepare_scaled_frame(feature_df: pd.DataFrame) -> tuple[np.ndarray, MinMaxScaler, int]:
-    """Melakukan scaling multivariate dengan scaler fit hanya pada train split."""
+def _prepare_scaled_frame(feature_df: pd.DataFrame) -> tuple[np.ndarray, MinMaxScaler, int, np.ndarray]:
+    """Mengubah semua kolom fitur jadi return, lalu scaling dengan scaler fit hanya pada train split."""
     values = feature_df.dropna().astype(float).values
-    train_size = int(len(values) * TRAIN_SPLIT_RATIO)
-    if train_size <= LOOKBACK or len(values) - train_size < 1:
+    returns = compute_returns(values)
+    train_size = int(len(returns) * TRAIN_SPLIT_RATIO)
+    if train_size <= LOOKBACK or len(returns) - train_size < 1:
         raise ValueError("data multivariate tidak cukup untuk train/validation split")
 
     scaler = MinMaxScaler(feature_range=(0, 1))
-    scaler.fit(values[:train_size])
-    return scaler.transform(values), scaler, train_size
+    scaler.fit(returns[:train_size])
+    scaled_returns = scaler.transform(returns)
+    return scaled_returns, scaler, train_size, values[:, 0]
 
 
 def train(horizon: str, multivariate: bool = False):
-    """Melatih model LSTM yang memprediksi harga absolut periode berikutnya."""
+    """Melatih model LSTM yang memprediksi return (persentase perubahan) periode berikutnya.
+
+    Target return dipilih daripada harga absolut karena LSTM harga absolut mudah
+    "menjiplak" nilai terakhir (mirip baseline naive) dan sulit mengalahkannya pada
+    backtest MAPE. Prediksi harga akhir tetap direkonstruksi dari harga asli terakhir
+    dikali (1 + return prediksi), jadi API luar (app.py, evaluate.py) tetap bicara
+    dalam skala harga, bukan return.
+    """
     normalized_horizon = horizon.lower()
     if normalized_horizon not in VALID_HORIZONS:
         valid_values = ", ".join(VALID_HORIZONS)
@@ -131,9 +157,9 @@ def train(horizon: str, multivariate: bool = False):
         feature_df = fetch_multivariate_data(period=TRAIN_PERIOD_BY_HORIZON[normalized_horizon])
         feature_df = feature_df.resample({"day": "B", "week": "W-FRI", "month": "ME"}[normalized_horizon]).last().ffill().dropna()
         close_series = feature_df["GoldClose"]
-        scaled_values, scaler, train_size = _prepare_scaled_frame(feature_df)
-        train_values = scaled_values[:train_size]
-        validation_values = scaled_values[train_size - LOOKBACK :]
+        scaled_returns, scaler, train_size, target_prices = _prepare_scaled_frame(feature_df)
+        train_values = scaled_returns[:train_size]
+        validation_values = scaled_returns[train_size - LOOKBACK :]
         x_train, y_train = build_feature_dataset(train_values, LOOKBACK)
         x_val, y_val = build_feature_dataset(validation_values, LOOKBACK)
         feature_count = feature_df.shape[1]
@@ -141,12 +167,18 @@ def train(horizon: str, multivariate: bool = False):
         historical_df = fetch_historical(period=TRAIN_PERIOD_BY_HORIZON[normalized_horizon])
         horizon_df = resample_data(historical_df, normalized_horizon)
         close_series = horizon_df["Close"]
-        scaled_values, scaler, train_size = _prepare_scaled_series(close_series)
-        train_values = scaled_values[:train_size]
-        validation_values = scaled_values[train_size - LOOKBACK :]
+        scaled_returns, scaler, train_size, target_prices = _prepare_scaled_series(close_series)
+        train_values = scaled_returns[:train_size]
+        validation_values = scaled_returns[train_size - LOOKBACK :]
         x_train, y_train = build_dataset(train_values, LOOKBACK)
         x_val, y_val = build_dataset(validation_values, LOOKBACK)
         feature_count = 1
+
+    # target_prices[train_size:] adalah harga dasar (t) untuk tiap sampel validasi,
+    # target_prices[train_size+1:] adalah harga aktual periode berikutnya (t+1) —
+    # dipakai merekonstruksi prediksi return kembali ke skala harga untuk MAPE.
+    base_prices_val = target_prices[train_size : train_size + len(y_val)]
+    actual_next_prices_val = target_prices[train_size + 1 : train_size + 1 + len(y_val)]
 
     model = build_model(feature_count)
     history = model.fit(
@@ -167,10 +199,11 @@ def train(horizon: str, multivariate: bool = False):
     metadata = {
         "horizon": normalized_horizon,
         "multivariate": multivariate,
+        "prediction_target": "return",
         "last_trained_at": pd.Timestamp.now(tz="UTC").isoformat(),
         "train_loss": float(history.history["loss"][-1]),
         "val_loss": float(history.history["val_loss"][-1]),
-        "validation_mape": _validation_mape(model, scaler, x_val, y_val),
+        "validation_mape": _validation_mape(model, scaler, x_val, base_prices_val, actual_next_prices_val),
         "lookback": LOOKBACK,
         "train_period": TRAIN_PERIOD_BY_HORIZON[normalized_horizon],
     }

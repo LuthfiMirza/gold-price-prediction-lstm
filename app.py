@@ -14,7 +14,7 @@ from streamlit_autorefresh import st_autorefresh
 from tensorflow.keras.models import load_model
 
 from data_fetch import DataFetchError, fetch_historical, get_latest_price, resample_data
-from model_train import LOOKBACK
+from model_train import LOOKBACK, compute_returns
 from model_train import train as train_model
 from prediction_log import get_realized_comparisons, log_prediction
 
@@ -111,15 +111,19 @@ def _load_prediction_artifacts(horizon: str):
 
 
 def predict_next_price(horizon: str) -> tuple[float, pd.Series]:
-    """Memprediksi harga absolut periode berikutnya dari LOOKBACK data terakhir."""
+    """Memprediksi harga periode berikutnya lewat return, lalu direkonstruksi ke skala harga."""
     model, scaler, series = _load_prediction_artifacts(horizon)
-    if len(series) < LOOKBACK:
+    if len(series) < LOOKBACK + 1:
         raise ValueError("series tidak cukup panjang untuk prediksi")
 
-    last_window = series.iloc[-LOOKBACK:].values.reshape(-1, 1)
+    prices = series.values
+    returns = compute_returns(prices)
+    last_window = returns[-LOOKBACK:].reshape(-1, 1)
     scaled_window = scaler.transform(last_window)
     scaled_prediction = model.predict(scaled_window.reshape(1, LOOKBACK, 1), verbose=0)
-    predicted_price = scaler.inverse_transform(scaled_prediction)[0][0]
+    predicted_return = scaler.inverse_transform(scaled_prediction)[0][0]
+    last_price = float(prices[-1])
+    predicted_price = last_price * (1 + predicted_return)
     return float(predicted_price), series
 
 

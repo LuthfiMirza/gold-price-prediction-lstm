@@ -10,7 +10,7 @@ import pandas as pd
 from tensorflow.keras.models import load_model
 
 from backtest import naive_forecast, walk_forward_mape
-from model_train import LOOKBACK, VALID_HORIZONS
+from model_train import LOOKBACK, VALID_HORIZONS, compute_returns
 
 
 def _artifact_path(prefix: str, horizon: str, suffix: str, multivariate: bool = False) -> Path:
@@ -32,58 +32,75 @@ def _load_scaler(horizon: str, multivariate: bool = False):
 
 
 def lstm_walk_forward_mape(series: pd.Series, horizon: str, window: int) -> float:
-    """Menghitung MAPE walk-forward LSTM dengan prediksi batch agar efisien."""
+    """Menghitung MAPE walk-forward LSTM dengan prediksi batch agar efisien.
+
+    Model memprediksi return, jadi hasilnya direkonstruksi kembali ke skala harga
+    (harga_dasar * (1 + return_prediksi)) sebelum dibandingkan dengan harga aktual.
+    """
     clean_series = series.dropna().astype(float)
-    if len(clean_series) <= window:
-        raise ValueError("panjang series harus lebih besar dari window")
+    prices = clean_series.values
+    if len(prices) <= window + 1:
+        raise ValueError("panjang series harus lebih besar dari window + 1")
 
     model = load_model(_artifact_path("model_lstm", horizon, "keras"))
     scaler = _load_scaler(horizon)
-    values = clean_series.values.reshape(-1, 1)
-    scaled_values = scaler.transform(values)
+    returns = compute_returns(prices).reshape(-1, 1)
+    scaled_returns = scaler.transform(returns)
 
     features = []
-    actual_values = []
-    for current_index in range(window, len(scaled_values)):
-        actual_value = float(values[current_index][0])
-        if actual_value == 0:
+    base_prices = []
+    actual_next_prices = []
+    for current_index in range(window, len(returns)):
+        actual_next_price = float(prices[current_index + 1])
+        if actual_next_price == 0:
             continue
-        features.append(scaled_values[current_index - window : current_index])
-        actual_values.append(actual_value)
+        features.append(scaled_returns[current_index - window : current_index])
+        base_prices.append(float(prices[current_index]))
+        actual_next_prices.append(actual_next_price)
 
     if not features:
         raise ValueError("MAPE tidak bisa dihitung karena semua nilai aktual bernilai 0")
 
-    scaled_predictions = model.predict(np.array(features), verbose=0)
-    predictions = scaler.inverse_transform(scaled_predictions).reshape(-1)
-    actual_array = np.asarray(actual_values, dtype=float)
-    return float(np.mean(np.abs((actual_array - predictions) / actual_array)) * 100)
+    scaled_predictions = model.predict(np.array(features), verbose=0).reshape(-1)
+    predicted_returns = scaled_predictions * scaler.data_range_[0] + scaler.data_min_[0]
+    predicted_prices = np.asarray(base_prices, dtype=float) * (1 + predicted_returns)
+    actual_array = np.asarray(actual_next_prices, dtype=float)
+    return float(np.mean(np.abs((actual_array - predicted_prices) / actual_array)) * 100)
 
 
 def multivariate_lstm_walk_forward_mape(feature_df: pd.DataFrame, horizon: str, window: int) -> float:
-    """Menghitung MAPE walk-forward LSTM multivariate dengan prediksi batch."""
+    """Menghitung MAPE walk-forward LSTM multivariate dengan prediksi batch.
+
+    Sama seperti versi univariate: model memprediksi return kolom target (GoldClose,
+    kolom pertama), lalu direkonstruksi ke skala harga sebelum dibandingkan.
+    """
     clean_df = feature_df.dropna().astype(float)
-    if len(clean_df) <= window:
-        raise ValueError("panjang feature_df harus lebih besar dari window")
+    values = clean_df.values
+    if len(values) <= window + 1:
+        raise ValueError("panjang feature_df harus lebih besar dari window + 1")
 
     model = load_model(_artifact_path("model_lstm", horizon, "keras", True))
     scaler = _load_scaler(horizon, True)
-    values = clean_df.values
-    scaled_values = scaler.transform(values)
+    returns = compute_returns(values)
+    scaled_returns = scaler.transform(returns)
+    target_prices = values[:, 0]
 
     features = []
-    actual_values = []
-    for current_index in range(window, len(scaled_values)):
-        actual_value = float(values[current_index, 0])
-        if actual_value == 0:
+    base_prices = []
+    actual_next_prices = []
+    for current_index in range(window, len(returns)):
+        actual_next_price = float(target_prices[current_index + 1])
+        if actual_next_price == 0:
             continue
-        features.append(scaled_values[current_index - window : current_index])
-        actual_values.append(actual_value)
+        features.append(scaled_returns[current_index - window : current_index])
+        base_prices.append(float(target_prices[current_index]))
+        actual_next_prices.append(actual_next_price)
 
     scaled_predictions = model.predict(np.array(features), verbose=0).reshape(-1)
-    predictions = scaled_predictions * scaler.data_range_[0] + scaler.data_min_[0]
-    actual_array = np.asarray(actual_values, dtype=float)
-    return float(np.mean(np.abs((actual_array - predictions) / actual_array)) * 100)
+    predicted_returns = scaled_predictions * scaler.data_range_[0] + scaler.data_min_[0]
+    predicted_prices = np.asarray(base_prices, dtype=float) * (1 + predicted_returns)
+    actual_array = np.asarray(actual_next_prices, dtype=float)
+    return float(np.mean(np.abs((actual_array - predicted_prices) / actual_array)) * 100)
 
 
 def evaluate_horizon(horizon: str) -> dict[str, float | str]:
