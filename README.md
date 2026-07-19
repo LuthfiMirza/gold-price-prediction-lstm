@@ -84,9 +84,23 @@ File berikut dibuat saat training/runtime dan tidak dicommit:
 
 ## Catatan Evaluasi Saat Ini
 
-Audit awal menunjukkan baseline naive masih mengalahkan LSTM pada semua horizon.
-Artinya project ini valid sebagai alat belajar/riset, tetapi model belum layak dianggap
-unggul untuk keputusan finansial.
+LSTM sempat memprediksi harga absolut, yang membuatnya gampang meniru strategi baseline
+naive (tebak = harga terakhir) dan kalah telak di semua horizon. Setelah target training
+diganti ke return (persentase perubahan) dan direkonstruksi ke skala harga saat prediksi,
+hasil walk-forward MAPE terbaru:
+
+| Horizon | LSTM MAPE | Naive MAPE | Pemenang |
+|---|---|---|---|
+| Day   | 0.78% | 0.73% | naive (tipis) |
+| Week  | 1.61% | 1.62% | **LSTM** |
+| Month | 3.65% | 3.63% | naive (tipis) |
+
+LSTM sudah mengalahkan naive di horizon mingguan, dan gap di horizon harian/bulanan
+menyempit drastis dibanding sebelumnya (dari selisih puluhan persen jadi < 0.1 poin
+persentase). Fitur makro (multivariate) saat ini hanya membantu di horizon harian;
+untuk mingguan dan bulanan versi univariate sedikit lebih baik. Project ini valid
+sebagai alat belajar/riset, tetapi keunggulan LSTM atas naive masih tipis dan belum
+konsisten di semua horizon — bukan dasar keputusan finansial.
 
 ## Disclaimer
 
