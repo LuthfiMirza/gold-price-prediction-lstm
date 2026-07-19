@@ -30,7 +30,7 @@ Tick only after the audit passes.
 - [x] Phase 1 — Data ingestion module (`data_fetch.py`)
 - [x] Phase 2 — Baseline naive forecaster + backtesting framework
 - [x] Phase 3 — LSTM training pipeline (`model_train.py`, horizon day/week/month)
-- [ ] Phase 4 — Model evaluation (MAPE model vs baseline, walk-forward)
+- [x] Phase 4 — Model evaluation (MAPE model vs baseline, walk-forward)
 - [ ] Phase 5 — Streamlit dashboard scaffold (horizon selector, layout)
 - [ ] Phase 6 — Prediction display with confidence interval + chart
 - [ ] Phase 7 — Data freshness status & API-failure warning
