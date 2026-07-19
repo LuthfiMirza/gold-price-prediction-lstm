@@ -1,0 +1,56 @@
+# === Model & data artifacts (dibuat otomatis oleh model_train.py) ===
+*.h5
+*.pkl
+*.keras
+
+# === Environment & secrets ===
+.env
+.env.local
+*.key
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# === Virtual environment ===
+venv/
+env/
+ENV/
+.venv/
+
+# === Jupyter Notebook ===
+.ipynb_checkpoints/
+
+# === Streamlit ===
+.streamlit/secrets.toml
+
+# === IDE / Editor ===
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# === Logs ===
+*.log
+
+# === OS files ===
+Thumbs.db
