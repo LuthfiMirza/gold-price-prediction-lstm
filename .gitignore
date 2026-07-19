@@ -56,3 +56,5 @@ ENV/
 Thumbs.db
 
 prediction_log.csv
+
+metadata_*.json
