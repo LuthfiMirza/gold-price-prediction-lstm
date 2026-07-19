@@ -1,76 +1,94 @@
 # Prediksi Harga Emas (XAU/USD) — LSTM + Streamlit
 
-Proyek untuk memprediksi harga emas harian/mingguan/bulanan menggunakan model LSTM,
-dengan dashboard interaktif berbasis Streamlit.
+Proyek portfolio untuk riset prediksi harga emas harian/mingguan/bulanan menggunakan LSTM,
+baseline naive, evaluasi MAPE, dan dashboard Streamlit. Data diambil dari Yahoo Finance
+melalui `yfinance` dengan simbol utama `GC=F`.
 
 ## Cara Menjalankan
 
-1. **Install dependencies**
+1. **Buat dan aktifkan virtual environment**
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
+
+2. **Install dependencies**
    ```bash
    pip install -r requirements.txt
    ```
 
-2. **Latih model** (opsional lewat command line, atau bisa langsung dari dashboard)
+3. **Latih model per horizon**
    ```bash
    python model_train.py --horizon day
    python model_train.py --horizon week
    python model_train.py --horizon month
    ```
 
-3. **Jalankan dashboard**
+4. **Opsional: latih model multivariate**
+   ```bash
+   python model_train.py --horizon day --multivariate
+   python model_train.py --horizon week --multivariate
+   python model_train.py --horizon month --multivariate
+   ```
+
+5. **Evaluasi model**
+   ```bash
+   python evaluate.py
+   python model_compare.py
+   ```
+
+6. **Jalankan dashboard**
    ```bash
    streamlit run app.py
    ```
-   Buka browser ke `http://localhost:8501`
-
-4. Di dashboard, kalau model belum ada, klik tombol **"Latih model sekarang"**
-   di sidebar — proses training akan berjalan otomatis.
-
-## Cara Kerja
-
-- **Data**: diambil dari Yahoo Finance (`yfinance`), simbol `GC=F` (Gold Futures)
-  sebagai proxy harga emas dunia (XAU/USD).
-- **Preprocessing**: data dipakai harian apa adanya, atau diagregasi jadi
-  mingguan/bulanan (`resample`), lalu dinormalisasi dengan `MinMaxScaler`.
-- **Model**: LSTM 2 layer dengan dropout, menggunakan 60 periode terakhir
-  (lookback) untuk memprediksi 1 periode berikutnya.
-- **Dashboard**: menampilkan harga historis, harga terkini, dan hasil
-  prediksi periode berikutnya, lengkap dengan grafik interaktif.
+   Buka browser ke `http://localhost:8501`.
 
 ## Struktur File
 
-```
+```text
 gold-prediction/
-├── data_fetch.py     # ambil data historis & harga terkini
-├── model_train.py     # bangun & latih model LSTM
+├── data_fetch.py       # ambil data emas, resampling OHLC, dan fitur makro
+├── backtest.py         # baseline naive + walk-forward MAPE
+├── model_train.py      # training LSTM univariate/multivariate + metadata
+├── evaluate.py         # evaluasi LSTM vs baseline naive
+├── model_compare.py    # perbandingan naive, LSTM, XGBoost, Prophet
+├── prediction_log.py   # log prediksi vs realisasi harga
 ├── app.py              # dashboard Streamlit
 ├── requirements.txt
-└── README.md
+├── PLAN.md
+└── CLAUDE.md
 ```
 
-Setelah training, akan muncul file tambahan (satu set per horizon: day/week/month):
-- `model_lstm_day.keras` / `model_lstm_week.keras` / `model_lstm_month.keras` — model tersimpan
-- `scaler_day.pkl` / `scaler_week.pkl` / `scaler_month.pkl` — scaler untuk normalisasi
-- `series_day.pkl` / `series_week.pkl` / `series_month.pkl` — data terakhir yang dipakai training
+## Artifact Lokal
 
-## Catatan Penting
+File berikut dibuat saat training/runtime dan tidak dicommit:
+- `model_lstm_*.keras` dan `model_lstm_multi_*.keras`
+- `scaler_*.pkl` dan `scaler_multi_*.pkl`
+- `series_*.pkl` dan `series_multi_*.pkl`
+- `metadata_*.json`
+- `prediction_log.csv`
 
-- **"Realtime"** di sini berarti dashboard mengambil data terbaru setiap kali
-  dibuka/refresh, lalu prediksi dihitung ulang — sesuai untuk horizon
-  mingguan/bulanan. Ini beda dengan prediksi per-detik/menit yang butuh
-  data streaming tick-by-tick.
-- Kualitas prediksi LSTM untuk harga aset finansial punya keterbatasan
-  inheren — harga emas dipengaruhi faktor makro (suku bunga, inflasi,
-  geopolitik) yang sulit ditangkap murni dari pola historis harga.
-  Gunakan sebagai alat bantu belajar/riset, bukan dasar keputusan investasi.
-- Kalau ingin data lebih presisi/realtime (per menit), bisa ganti
-  `data_fetch.py` untuk memakai API berbayar seperti GoldAPI.io atau
-  Metals-API, lalu sesuaikan pipeline datanya.
+## Fitur Dashboard
 
-## Ide Pengembangan Lanjutan
+- Sidebar horizon Harian/Mingguan/Bulanan.
+- Harga terkini dan status kesegaran data.
+- Warning banner saat fetch Yahoo Finance gagal.
+- Kartu ringkasan harga sekarang, prediksi periode depan, rentang MAPE, dan perubahan persen.
+- Grafik Plotly line/candlestick dengan titik prediksi, confidence band, support, dan resistance.
+- CSV export data historis + prediksi.
+- Riwayat prediksi vs harga realisasi.
+- Tombol retrain manual dan metadata training.
+- Auto-refresh 10 menit untuk fetch + predict, bukan retraining otomatis.
+- Panel perbandingan model naive/LSTM/XGBoost/Prophet.
+- Disclaimer finansial selalu tampil di bagian bawah dashboard.
 
-- Tambah fitur eksternal (DXY index, suku bunga The Fed, harga minyak)
-  sebagai input tambahan ke model
-- Bandingkan performa LSTM vs Prophet vs XGBoost
-- Tambah backtesting untuk mengukur akurasi prediksi historis
-- Deploy ke Streamlit Community Cloud biar bisa diakses online
+## Catatan Evaluasi Saat Ini
+
+Audit awal menunjukkan baseline naive masih mengalahkan LSTM pada semua horizon.
+Artinya project ini valid sebagai alat belajar/riset, tetapi model belum layak dianggap
+unggul untuk keputusan finansial.
+
+## Disclaimer
+
+Prediksi ini hanya untuk riset dan edukasi, bukan rekomendasi finansial atau ajakan
+membeli/menjual aset apa pun.

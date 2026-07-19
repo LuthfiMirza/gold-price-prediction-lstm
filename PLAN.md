@@ -40,7 +40,7 @@ Tick only after the audit passes.
 - [x] Phase 11 — Support/resistance levels + CSV export
 - [x] Phase 12 — External macro features (DXY, Fed rate, oil price)
 - [x] Phase 13 — Model comparison (XGBoost / Prophet side-by-side)
-- [ ] Phase 14 — Documentation polish & disclaimer review
+- [x] Phase 14 — Documentation polish & disclaimer review
 
 ---
 

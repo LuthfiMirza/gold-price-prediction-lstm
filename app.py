@@ -267,3 +267,9 @@ except DataFetchError as error:
     st.warning(f"⚠️ Gagal mengambil data terbaru dari Yahoo Finance: {error}")
 except ValueError as error:
     st.warning(str(error))
+
+st.divider()
+st.caption(
+    "Disclaimer: prediksi ini hanya untuk riset dan edukasi, bukan rekomendasi finansial "
+    "atau ajakan membeli/menjual aset apa pun."
+)
